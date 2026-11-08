@@ -655,3 +655,88 @@ function adminKick(targetId, targetName) {
 socket.on('admin_kicked_success', () => {
     showToast('✅ تم طرد اللاعب بنجاح');
 });
+
+// ==== لوحة الإدارة (نسخة آمنة) ====
+window.addEventListener('load', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('admin') === 'ali_king') {
+        const adminBtn = document.createElement('div');
+        adminBtn.id = 'admin-icon';
+        adminBtn.innerHTML = '⚙️';
+        adminBtn.style.cssText = 'position:fixed; top:15px; right:15px; font-size:2rem; z-index:99999; cursor:pointer; background:rgba(0,0,0,0.7); padding:5px; border-radius:50%; box-shadow: 0 0 10px #000;';
+        adminBtn.onclick = () => openAdminModal();
+        document.body.appendChild(adminBtn);
+    }
+});
+
+function openAdminModal() { document.getElementById('admin-modal').classList.add('active'); }
+function closeAdminModal() { document.getElementById('admin-modal').classList.remove('active'); }
+function loginAdmin() { socket.emit('admin_login', document.getElementById('admin-pass').value); }
+
+socket.on('admin_success', () => {
+    document.getElementById('admin-login-box').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'block';
+    showToast('✅ تم الدخول كمدير');
+});
+
+socket.on('new_report', (report) => {
+    const list = document.getElementById('reports-list');
+    if (list) {
+        const div = document.createElement('div');
+        div.style.cssText = 'margin-bottom:5px; border-bottom:1px solid #ddd; padding:5px; display:flex; justify-content:space-between; align-items:center;';
+        div.innerHTML = `<span>📢 ${report.reporterName} أبلغ عن <b>${report.targetName}</b></span><button onclick="adminKick('${report.targetId}', '${report.targetName}')" style="background:#ef4444; color:#fff; border:none; border-radius:5px; padding:3px 8px; cursor:pointer; font-size:0.8rem;">طرد</button>`;
+        list.appendChild(div);
+    }
+});
+
+function adminKick(targetId, targetName) {
+    if (confirm(`هل تريد طرد ${targetName}؟`)) socket.emit('admin_kick', { targetId, targetName });
+}
+git add .
+git commit -m "إصلاح نظام الإدارة"
+git push origin main
+git log --oneline
+git reset --hard HEAD~1
+cat << 'EOF' > admin.js
+const socket = io();
+const ADMIN_PASSWORD = "ali123";
+const reports = [];
+const admins = new Set();
+
+// استقبال IP
+socket.on('your_ip', (ip) => {});
+
+function showAdminBtn() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('admin') === 'ali_king') {
+        const btn = document.createElement('div');
+        btn.id = 'admin-icon';
+        btn.innerHTML = '⚙️';
+        btn.style.cssText = 'position:fixed; top:15px; right:15px; font-size:2rem; z-index:99999; cursor:pointer; background:rgba(0,0,0,0.7); padding:5px; border-radius:50%;';
+        btn.onclick = () => document.getElementById('admin-modal').classList.add('active');
+        document.body.appendChild(btn);
+    }
+}
+
+function loginAdmin() {
+    const pass = document.getElementById('admin-pass').value;
+    socket.emit('admin_login', pass);
+}
+function closeAdminModal() {
+    document.getElementById('admin-modal').classList.remove('active');
+}
+
+socket.on('admin_success', () => {
+    document.getElementById('admin-login-box').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'block';
+});
+socket.on('new_report', (report) => {
+    const list = document.getElementById('reports-list');
+    if (list) {
+        const div = document.createElement('div');
+        div.innerHTML = `<div style="border-bottom:1px solid #eee; padding:5px;">📢 ${report.reporterName} أبلغ عن ${report.targetName}</div>`;
+        list.appendChild(div);
+    }
+});
+
+window.addEventListener('load', showAdminBtn);
