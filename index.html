@@ -195,3 +195,23 @@
     <script src="script.js"></script>
 </body>
 </html>
+<!-- نافذة المطور (Admin) -->
+<div id="admin-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">لوحة الإدارة</h2>
+            <button class="close-modal-btn" onclick="closeAdminModal()">×</button>
+        </div>
+        <div id="admin-login-box">
+            <p style="text-align:center; margin-bottom:10px;">أدخل كلمة سر المطور:</p>
+            <input type="password" id="admin-pass" placeholder="كلمة السر..." style="width:100%; padding:10px; margin-bottom:10px; border-radius:8px; border:1px solid #ccc;">
+            <button onclick="loginAdmin()" style="width:100%; padding:10px; background:#15803d; color:#fff; border:none; border-radius:8px; font-weight:bold;">دخول</button>
+        </div>
+        <div id="admin-panel" style="display:none;">
+            <h3 style="text-align:center; color:#ef4444;">مرحباً بك يا مطور!</h3>
+            <div id="reports-list" style="max-height:200px; overflow-y:auto; background:#f1f5f9; padding:10px; border-radius:8px; margin-top:10px; font-size:0.9rem;">
+                <!-- قائمة البلاغات -->
+            </div>
+        </div>
+    </div>
+</div>

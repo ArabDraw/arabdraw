@@ -571,3 +571,28 @@ window.addEventListener('load', () => {
     // إعادة حساب حجم اللوحة عند تغيير حجم الشاشة
     window.addEventListener('resize', resizeCanvas);
 });
+
+// ==== نظام الإدارة ====
+function openAdminModal() {
+    document.getElementById('admin-modal').classList.add('active');
+}
+function closeAdminModal() {
+    document.getElementById('admin-modal').classList.remove('active');
+}
+function loginAdmin() {
+    const pass = document.getElementById('admin-pass').value;
+    socket.emit('admin_login', pass);
+}
+
+socket.on('admin_success', () => {
+    document.getElementById('admin-login-box').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'block';
+    showToast('✅ تم الدخول كمدير');
+});
+
+socket.on('new_report', (report) => {
+    const list = document.getElementById('reports-list');
+    if (list) {
+        list.innerHTML += `<div style="margin-bottom:5px; border-bottom:1px solid #ddd; padding:5px;">📢 ${report.reporter} أبلغ عن ${report.target} (${report.time})</div>`;
+    }
+});

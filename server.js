@@ -238,3 +238,49 @@ function leaveRoom(socket) {
 }
 
 server.listen(PORT, () => console.log(`✅ السيرفر يعمل على http://127.0.0.1:${PORT}`));
+
+// ===== نظام الإدارة =====
+const ADMIN_PASSWORD = "ali123"; // كلمة سر المطور
+const reports = []; // مصفوفة لتخزين البلاغات
+
+io.on('connection', (socket) => {
+    // دخول المطور
+    socket.on('admin_login', (pass) => {
+        if (pass === ADMIN_PASSWORD) {
+            socket.data.isAdmin = true;
+            socket.emit('admin_success');
+            socket.emit('new_report', { msg: "مرحباً بك في لوحة التحكم" });
+        } else {
+            socket.emit('toast', { message: 'كلمة السر خاطئة!' });
+        }
+    });
+
+    // استقبال بلاغ جديد
+    socket.on('report_player', (data) => {
+        const roomId = socket.data.roomId;
+        const room = rooms.get(roomId);
+        if (!room) return;
+        
+        const reporter = room.players.get(socket.id);
+        const target = room.players.get(data.targetId);
+        
+        if (reporter && target) {
+            const reportInfo = {
+                reporter: reporter.name,
+                target: target.name,
+                time: new Date().toLocaleTimeString('ar-SA')
+            };
+            reports.push(reportInfo);
+            systemMsg(room, `🚨 تم الإبلاغ عن ${target.name} من قبل ${reporter.name}`, 'system');
+            
+            // إرسال البلاغ للمطور فقط
+            io.emit('new_report', reportInfo);
+        }
+    });
+
+    // طرد لاعب من قبل المطور
+    socket.on('admin_kick', (targetId) => {
+        if (!socket.data.isAdmin) return;
+        // منطق الطرد هنا (اختياري للتنفيذ)
+    });
+});
