@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ArabDraw — لعبة الرسم والتخمين</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+
+    <!-- ============================================================
+         شاشة اللوبي الرئيسية (Lobby Screen)
+         ============================================================ -->
+    <div id="lobby-screen" class="screen active">
+        <div class="info-btn-circle" onclick="openInfoModal()">
+            <img src="info-icon.png" class="info-icon-img" onerror="this.style.display='none'">
+        </div>
+        
+        <div class="top-logo-container">
+            <img src="logo.png" class="main-logo-img" onerror="this.style.display='none'">
+        </div>
+
+        <!-- بطاقة اللاعب -->
+        <div class="gartic-card">
+            <div class="avatar-circle" onclick="openAvatarModal()">
+                <img id="selected-avatar-img" src="avatar-3.png" class="current-avatar-img">
+                <div class="edit-badge">
+                    <img src="edit-icon.png" onerror="this.style.display='none'">
+                </div>
+            </div>
+            
+            <div class="input-group">
+                <label for="username">الاسم المستعار:</label>
+                <input type="text" id="username" placeholder="اكتب اسمك هنا..." maxlength="12" autocomplete="off">
+            </div>
+        </div>
+
+        <!-- أزرار اللعب والغرف -->
+        <div class="action-buttons-group">
+            <div class="img-btn-wrapper btn-play-wrap" onclick="playQuick()">العب</div>
+            <div class="img-btn-wrapper btn-rooms-wrap" onclick="openRoomsModal()">الغرف</div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         نافذة الغرف العامة (Rooms Modal)
+         ============================================================ -->
+    <div id="rooms-modal" class="modal-overlay">
+        <div class="rooms-container-box">
+            <div class="rooms-header">
+                <button class="rooms-back-btn" onclick="closeRoomsModal()">›</button>
+                <h2 class="rooms-title">الغرف العامة</h2>
+                <div style="width: 40px;"></div>
+            </div>
+            <div class="servers-list" id="servers-list-container"></div>
+            <div class="create-room-footer" onclick="createNewRoom()">+ إنشاء غرفة مخصصة</div>
+        </div>
+    </div>
+
+    <!-- نافذة اختيار الأفاتار -->
+    <div id="avatar-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">اختر صورتك الشخصية</h2>
+                <button class="close-modal-btn" onclick="closeAvatarModal()">×</button>
+            </div>
+            <div class="avatars-grid">
+                <img src="avatar-1.png" onclick="selectAvatar('avatar-1.png')" class="avatar-option">
+                <img src="avatar-2.png" onclick="selectAvatar('avatar-2.png')" class="avatar-option">
+                <img src="avatar-3.png" onclick="selectAvatar('avatar-3.png')" class="avatar-option">
+                <img src="avatar-4.png" onclick="selectAvatar('avatar-4.png')" class="avatar-option">
+                <img src="avatar-5.png" onclick="selectAvatar('avatar-5.png')" class="avatar-option">
+                <img src="avatar-6.png" onclick="selectAvatar('avatar-6.png')" class="avatar-option">
+                <img src="avatar-7.png" onclick="selectAvatar('avatar-7.png')" class="avatar-option">
+                <img src="avatar-8.png" onclick="selectAvatar('avatar-8.png')" class="avatar-option">
+                <img src="avatar-9.png" onclick="selectAvatar('avatar-9.png')" class="avatar-option">
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة المعلومات -->
+    <div id="info-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">معلومات اللعبة</h2>
+                <button class="close-modal-btn" onclick="closeInfoModal()">×</button>
+            </div>
+            <div class="info-tabs">
+                <button class="tab-btn active" onclick="switchInfoTab('rules')">القوانين</button>
+                <button class="tab-btn" onclick="switchInfoTab('about')">المطور</button>
+            </div>
+            <div id="tab-rules" class="tab-content active">
+                <ul class="rules-list">
+                    <li>احترم جميع اللاعبين وعدم استخدام الألفاظ النابية.</li>
+                    <li>يُمنع رسم رموز خادشة للحياء أو مخالفة للآداب.</li>
+                    <li>الراسم يحصل على نقاط عند تخمين الآخرين لكلمته.</li>
+                    <li>اللاعب الأول الذي يخمّن يحصل على أعلى النقاط.</li>
+                </ul>
+            </div>
+            <div id="tab-about" class="tab-content">
+                <div class="about-box">
+                    <p><strong>تطبيق ArabDraw</strong></p>
+                    <p>لعبة رسم وتخمين جماعية عربية</p>
+                    <hr style="margin:10px 0; border:1px solid #e2e8f0;">
+                    <p><strong>المطور:</strong> علي الكناني</p>
+                    <p><strong>تيليجرام:</strong> <span dir="ltr">@sndid9</span></p>
+                    <p><strong>البريد:</strong> <span dir="ltr">tihamaland@gmail.com</span></p>
+                    <p style="font-size:0.9rem; color:#64748b; margin-top:10px;">طُوّر في المملكة العربية السعودية - محافظة القنفذة</p>
+                    <p style="font-size:0.8rem; color:#94a3b8;">الإصدار 5.0.0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         شاشة اللعب (Game Screen)
+         ============================================================ -->
+    <div id="game-screen" class="screen">
+        <header class="top-bar">
+            <button class="icon-btn" onclick="leaveGame()">✕</button>
+            <div class="top-center">
+                <div class="timer" id="timer">—</div>
+                <div class="word-box" id="word-box">؟ ؟ ؟ ؟</div>
+            </div>
+            <button class="icon-btn action-yellow" onclick="openReportModal()">⚠</button>
+        </header>
+        <div class="main-layout">
+            <!-- قائمة اللاعبين -->
+            <aside class="players-list" id="players-list">
+                <h3>اللاعبون</h3>
+            </aside>
+
+            <!-- حاوية اللوحة -->
+            <main class="canvas-area">
+                <div class="canvas-wrapper" id="canvas-wrapper">
+                    <canvas id="paint-canvas"></canvas>
+                </div>
+                <!-- شريط الأدوات السفلي -->
+                <div class="tools-bar">
+                    <div class="colors-palette" id="colors-palette"></div>
+                    <input type="range" id="brush-size" min="2" max="30" value="5">
+                    <button class="tool-btn" onclick="clearCanvas()">🧹</button>
+                </div>
+                <!-- حاوية الملصقات -->
+                <div id="overlay-sticker" class="overlay-sticker" style="display:none;">
+                    <img id="sticker-img" src="" alt="Sticker">
+                    <div id="sticker-title" class="sticker-title"></div>
+                    <div id="sticker-subtitle" class="sticker-subtitle"></div>
+                </div>
+            </main>
+            <!-- الدردشة -->
+            <aside class="chat-area">
+                <div class="chat-messages" id="chat-messages"></div>
+                <div class="chat-input-box">
+                    <input type="text" id="guess-input" placeholder="اكتب تخمينك..." onkeydown="handleChat(event)" autocomplete="off" maxlength="150">
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- نافذة الملف الشخصي للاعب -->
+    <div id="profile-modal" class="modal-overlay">
+        <div class="modal-content profile-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="profile-title">الملف الشخصي</h2>
+                <button class="close-modal-btn" onclick="closeProfileModal()">×</button>
+            </div>
+            <div style="text-align:center;">
+                <img id="profile-avatar" src="avatar-3.png" style="width:120px; height:120px; border-radius:50%; border:4px solid #1a1a1a; margin-bottom:15px; background:#ffb703;">
+                <h2 id="profile-name" style="font-size:1.5rem; color:#1e293b; margin-bottom:20px;">اللاعب</h2>
+                <button class="report-btn" id="btn-votekick" onclick="voteKickPlayer()" style="display:none;">🚫 تصويت للطرد</button>
+                <button class="report-btn" onclick="openReportModal()">⚠ الإبلاغ عن اللاعب</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة الإبلاغ -->
+    <div id="report-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">الإبلاغ</h2>
+                <button class="close-modal-btn" onclick="closeReportModal()">×</button>
+            </div>
+            <p style="text-align:center; margin-bottom:15px;">هل أنت متأكد؟<br>سيتم مراجعة البلاغ من الإدارة.</p>
+            <div style="display:flex; gap:10px;">
+                <button style="flex:1; padding:12px; background:#ef4444; color:#fff; border:none; border-radius:10px; font-weight:bold;" onclick="submitReport()">نعم</button>
+                <button style="flex:1; padding:12px; background:#cbd5e1; border:none; border-radius:10px; font-weight:bold;" onclick="closeReportModal()">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- التنبيهات وإغلاق الصفحة -->
+    <div id="toast" class="toast"></div>
+    <script src="script.js"></script>
+</body>
+</html>
