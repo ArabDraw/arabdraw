@@ -95,36 +95,23 @@ function nextTurn(room) {
     updatePlayers(room);
     io.to('room_' + room.id).emit('round_start', { drawerId, drawerName: drawer ? drawer.name : '؟', round: room.round, maxRounds: room.maxRounds });
     if (drawer) io.to(drawerId).emit('word_choices', choices);
-    
-    startTimer(room, CHOOSE_TIME, t => io.to('room_' + room.id).emit('timer_tick', { seconds: t }), () => {
-        if (room.state === 'choosing' && drawer) {
-            io.to('room_' + room.id).emit('show_sticker', { img: 'deer_sleep.png', title: '⏰ انتهى الوقت!', subtitle: 'الراسم لم يستجب' });
-            setTimeout(() => { if (room.state === 'choosing') startDrawing(room, choices[0]); }, 2000);
-        }
-    });
+    startTimer(room, CHOOSE_TIME, t => io.to('room_' + room.id).emit('timer_tick', { seconds: t }), () => { if (room.state === 'choosing' && drawer) startDrawing(room, choices[0]); });
 }
 
 function startDrawing(room, word) {
     clearTimer(room);
     room.state = 'drawing'; room.currentWord = word; room.usedWords.push(word);
-    room.guessedPlayers.clear(); room.hintsRevealed = 0;
-    room.currentHint = buildHint(word, 0);
-    io.to('room_' + room.id).emit('word_selected', { drawerId: room.drawerId, wordLength: word.replace(/\s/g, '').length, hint: room.currentHint });
+    room.guessedPlayers.clear(); room.hintsRevealed = 0; room.currentHint = buildHint(word, 0);
+    io.to('room_' + room.id).emit('word_selected', { drawerId: room.drawerId, wordLength: word.length, hint: room.currentHint });
     io.to(room.drawerId).emit('drawer_word', { word });
-    updatePlayers(room);
-    io.to('room_' + room.id).emit('canvas_clear');
+    updatePlayers(room); io.to('room_' + room.id).emit('canvas_clear');
     systemMsg(room, `✏️ ${room.players.get(room.drawerId).name} يرسم الآن`);
-    
     let elapsed = 0;
     startTimer(room, DRAW_TIME, t => {
         io.to('room_' + room.id).emit('timer_tick', { seconds: t });
         elapsed = DRAW_TIME - t;
-        const shouldReveal = [HINT_INTERVAL, HINT_INTERVAL*2, HINT_INTERVAL*3].filter(x => x <= elapsed).length;
-        if (shouldReveal > room.hintsRevealed) {
-            room.hintsRevealed = shouldReveal;
-            room.currentHint = buildHint(word, shouldReveal);
-            io.to('room_' + room.id).emit('hint_update', { hint: room.currentHint });
-        }
+        const shouldReveal = [HINT_INTERVAL, HINT_INTERVAL*2].filter(x => x <= elapsed).length;
+        if (shouldReveal > room.hintsRevealed) { room.hintsRevealed = shouldReveal; room.currentHint = buildHint(word, shouldReveal); io.to('room_' + room.id).emit('hint_update', { hint: room.currentHint }); }
     }, () => endRound(room, 'انتهى الوقت'));
 }
 
@@ -132,23 +119,15 @@ function endRound(room, reason) {
     clearTimer(room);
     if (room.state !== 'drawing') return;
     room.state = 'roundEnd';
-    const totalGuessed = room.guessedPlayers.size;
-    const totalPlayers = room.players.size - 1;
-
-    if (totalGuessed === 0) io.to('room_' + room.id).emit('show_sticker', { img: 'storm_cloud.png', title: '⛈️ لم يخمن أحد', subtitle: 'الجميع إجابته خاطئة! الكلمة: ' + room.currentWord });
-    else if (totalGuessed === totalPlayers) io.to('room_' + room.id).emit('show_sticker', { img: 'thumbs_up.png', title: '👍🏽 أحسنتم!', subtitle: 'الجميع أجاب صحيح!' });
-    else io.to('room_' + room.id).emit('show_sticker', { img: 'coffee_pot.png', title: '☕ إجابات صحيحة', subtitle: `أجاب ${totalGuessed} من ${totalPlayers}` });
-
     setTimeout(() => {
         io.to('room_' + room.id).emit('round_end', { word: room.currentWord, scores: getPlayersArray(room), reason });
-        setTimeout(() => { if (room.players.size > 0) nextTurn(room); }, 4000);
-    }, 2500);
+        setTimeout(() => { if (room.players.size > 0) nextTurn(room); }, 3000);
+    }, 1000);
 }
 
 function endGame(room) {
     clearTimer(room); room.state = 'gameEnd';
     io.to('room_' + room.id).emit('game_end', { scores: getPlayersArray(room) });
-    systemMsg(room, '🏆 انتهت اللعبة!');
     setTimeout(() => { if (room.players.size > 0) resetRoom(room); }, 8000);
 }
 
@@ -156,26 +135,21 @@ function checkGuess(room, socketId, text) {
     if (room.state !== 'drawing' || !room.currentWord || socketId === room.drawerId || room.guessedPlayers.has(socketId)) return false;
     const player = room.players.get(socketId); if (!player) return false;
     const norm = text.trim().toLowerCase().replace(/\s+/g, ' ');
-    const target = room.currentWord.toLowerCase();
-    if (norm === target || norm.replace(/\s/g, '') === target.replace(/\s/g, '')) {
+    if (norm === room.currentWord.toLowerCase()) {
         const order = room.guessedPlayers.size + 1;
-        let pts = order === 1 ? 30 : order === 2 ? 20 : order === 3 ? 10 : 5;
+        let pts = order === 1 ? 30 : order === 2 ? 20 : 10;
         player.score += pts; room.guessedPlayers.add(socketId);
         const drawer = room.players.get(room.drawerId); if (drawer) drawer.score += 50;
-        io.to('room_' + room.id).emit('correct_guess', { playerId: socketId, name: player.name, points: pts, word: order === 1 ? room.currentWord : null });
+        io.to('room_' + room.id).emit('correct_guess', { name: player.name, points: pts });
         updatePlayers(room);
         if (room.guessedPlayers.size >= room.players.size - 1) endRound(room, 'خمّن الجميع');
         return true;
-    } else {
-        if ((target.includes(norm) || norm.includes(target)) && norm.length >= 2) io.to(socketId).emit('close_guess', {});
     }
     return false;
 }
 
 io.on('connection', (socket) => {
-    socket.on('ping_check', () => socket.emit('pong_check'));
     socket.on('get_rooms', () => socket.emit('rooms_list', getRoomsInfo()));
-
     socket.on('join_game', (data) => {
         const room = rooms.get(parseInt(data.roomId));
         if (!room) return socket.emit('join_error', { message: 'الغرفة غير موجودة' });
@@ -187,40 +161,20 @@ io.on('connection', (socket) => {
         socket.emit('join_success', { roomId: room.id, myId: socket.id, hostId: room.hostId, roomName: room.name, state: room.state });
         updatePlayers(room); updateRoomsList();
         systemMsg(room, `👋 ${player.name} انضم`, 'join');
-        if (room.state === 'drawing' && room.currentHint) socket.emit('word_selected', { drawerId: room.drawerId, wordLength: room.currentWord ? room.currentWord.length : 0, hint: room.currentHint });
     });
-
     socket.on('start_game', () => { const room = rooms.get(socket.data.roomId); if (room && socket.id === room.hostId && room.state === 'waiting') startGame(room); });
     socket.on('choose_word', (data) => { const room = rooms.get(socket.data.roomId); if (room && socket.id === room.drawerId && room.state === 'choosing') startDrawing(room, data.word); });
     socket.on('draw_start', (d) => { const room = rooms.get(socket.data.roomId); if (room && room.state === 'drawing' && socket.id === room.drawerId) socket.to('room_' + room.id).emit('draw_data', { type: 'start', ...d }); });
     socket.on('draw_move', (d) => { const room = rooms.get(socket.data.roomId); if (room && room.state === 'drawing' && socket.id === room.drawerId) socket.to('room_' + room.id).emit('draw_data', { type: 'move', ...d }); });
     socket.on('draw_end', () => { const room = rooms.get(socket.data.roomId); if (room && room.state === 'drawing' && socket.id === room.drawerId) socket.to('room_' + room.id).emit('draw_data', { type: 'end' }); });
     socket.on('clear_canvas', () => { const room = rooms.get(socket.data.roomId); if (room && socket.id === room.drawerId) io.to('room_' + room.id).emit('canvas_clear'); });
-
     socket.on('send_chat', (data) => {
         const room = rooms.get(socket.data.roomId); if (!room) return;
         const player = room.players.get(socket.id); if (!player) return;
         const msg = (data.message || '').trim().substring(0, 150); if (!msg) return;
-        if (socket.id === room.drawerId || room.guessedPlayers.has(socket.id) || room.state !== 'drawing') {
-            io.to('room_' + room.id).emit('chat_message', { type: 'chat', username: player.name, message: msg, avatar: player.avatar });
-        } else {
-            if (!checkGuess(room, socket.id, msg)) io.to('room_' + room.id).emit('chat_message', { type: 'chat', username: player.name, message: msg, avatar: player.avatar });
-        }
+        if (socket.id === room.drawerId || room.guessedPlayers.has(socket.id) || room.state !== 'drawing') io.to('room_' + room.id).emit('chat_message', { type: 'chat', username: player.name, message: msg });
+        else if (!checkGuess(room, socket.id, msg)) io.to('room_' + room.id).emit('chat_message', { type: 'chat', username: player.name, message: msg });
     });
-
-    socket.on('vote_kick', (data) => { const room = rooms.get(socket.data.roomId); if (!room) return; systemMsg(room, `🗳️ ${room.players.get(socket.id).name} صوّت لطرد ${room.players.get(data.targetId)?.name || 'لاعب'}`, 'system'); });
-    socket.on('report_player', (data) => { const room = rooms.get(socket.data.roomId); if (!room) return; systemMsg(room, `🚨 تم الإبلاغ عن لاعب من قبل ${room.players.get(socket.id).name}`, 'system'); });
-
-    socket.on('kick_player', (data) => {
-        const room = rooms.get(socket.data.roomId); if (!room || socket.id !== room.hostId || data.targetId === socket.id) return;
-        const target = io.sockets.sockets.get(data.targetId);
-        if (target) { target.emit('kicked'); target.leave('room_' + room.id); target.data.roomId = null; }
-        room.players.delete(data.targetId); systemMsg(room, `🚫 تم طرد لاعب`);
-        if (room.hostId === data.targetId) { room.hostId = room.players.keys().next().value; io.to('room_' + room.id).emit('host_changed', { newHostId: room.hostId }); }
-        if (room.drawerId === data.targetId) endRound(room, 'خرج الراسم');
-        updatePlayers(room); updateRoomsList();
-    });
-
     socket.on('leave_game', () => leaveRoom(socket));
     socket.on('disconnect', () => leaveRoom(socket));
 });
@@ -231,167 +185,9 @@ function leaveRoom(socket) {
     room.players.delete(socket.id); room.guessedPlayers.delete(socket.id);
     socket.leave('room_' + room.id); socket.data.roomId = null;
     if (player) systemMsg(room, `👋 ${player.name} خرج`, 'leave');
-    if (room.hostId === socket.id) { room.hostId = room.players.keys().next().value || null; if (room.hostId) io.to('room_' + room.id).emit('host_changed', { newHostId: room.hostId }); }
+    if (room.hostId === socket.id) { room.hostId = room.players.keys().next().value || null; }
     if (room.drawerId === socket.id) endRound(room, 'خرج الراسم');
     updatePlayers(room); updateRoomsList();
     if (room.players.size === 0) resetRoom(room);
 }
-
 server.listen(PORT, () => console.log(`✅ السيرفر يعمل على http://127.0.0.1:${PORT}`));
-
-// ===== نظام الإدارة =====
-const ADMIN_PASSWORD = "ali123"; // كلمة سر المطور
-const reports = []; // مصفوفة لتخزين البلاغات
-
-io.on('connection', (socket) => {
-    // دخول المطور
-    socket.on('admin_login', (pass) => {
-        if (pass === ADMIN_PASSWORD) {
-            socket.data.isAdmin = true;
-            socket.emit('admin_success');
-            socket.emit('new_report', { msg: "مرحباً بك في لوحة التحكم" });
-        } else {
-            socket.emit('toast', { message: 'كلمة السر خاطئة!' });
-        }
-    });
-
-    // استقبال بلاغ جديد
-    socket.on('report_player', (data) => {
-        const roomId = socket.data.roomId;
-        const room = rooms.get(roomId);
-        if (!room) return;
-        
-        const reporter = room.players.get(socket.id);
-        const target = room.players.get(data.targetId);
-        
-        if (reporter && target) {
-            const reportInfo = {
-                reporter: reporter.name,
-                target: target.name,
-                time: new Date().toLocaleTimeString('ar-SA')
-            };
-            reports.push(reportInfo);
-            systemMsg(room, `🚨 تم الإبلاغ عن ${target.name} من قبل ${reporter.name}`, 'system');
-            
-            // إرسال البلاغ للمطور فقط
-            io.emit('new_report', reportInfo);
-        }
-    });
-
-    // طرد لاعب من قبل المطور
-    socket.on('admin_kick', (targetId) => {
-        if (!socket.data.isAdmin) return;
-        // منطق الطرد هنا (اختياري للتنفيذ)
-    });
-});
-
-// إرسال IP اللاعب له عند الاتصال
-io.on('connection', (socket) => {
-    socket.emit('your_ip', socket.handshake.address);
-});
-
-// ===== نظام الإدارة المتقدم =====
-const ADMIN_PASSWORD = "ali123";
-const reports = [];
-const admins = new Set();
-
-io.on('connection', (socket) => {
-    socket.on('admin_login', (pass) => {
-        if (pass === ADMIN_PASSWORD) {
-            admins.add(socket.id);
-            socket.emit('admin_success');
-            // إرسال كل البلاغات السابقة
-            reports.forEach(r => socket.emit('new_report', r));
-        } else {
-            socket.emit('toast', { message: 'كلمة السر خاطئة!' });
-        }
-    });
-
-    socket.on('report_player', (data) => {
-        const room = rooms.get(socket.data.roomId);
-        if (!room) return;
-        const reporter = room.players.get(socket.id);
-        const target = room.players.get(data.targetId);
-        
-        if (reporter && target) {
-            const reportInfo = {
-                id: Date.now(),
-                reporterName: reporter.name,
-                targetName: target.name,
-                targetId: target.id,
-                roomName: room.name,
-                time: new Date().toLocaleTimeString('ar-SA')
-            };
-            reports.push(reportInfo);
-            systemMsg(room, `🚨 تم الإبلاغ عن ${target.name} من قبل ${reporter.name}`, 'system');
-            
-            // إرسال للمطور فقط
-            admins.forEach(adminId => {
-                io.to(adminId).emit('new_report', reportInfo);
-            });
-        }
-    });
-
-    socket.on('admin_kick', (data) => {
-        if (!admins.has(socket.id)) return;
-        const room = rooms.get(socket.data.roomId);
-        if (!room) return;
-        
-        const targetSocket = io.sockets.sockets.get(data.targetId);
-        if (targetSocket) {
-            targetSocket.emit('kicked');
-            targetSocket.leave('room_' + room.id);
-            targetSocket.data.roomId = null;
-        }
-        room.players.delete(data.targetId);
-        systemMsg(room, `🚫 تم طرد ${data.targetName || 'لاعب'} بواسطة الإدارة`);
-        updatePlayers(room);
-        updateRoomsList();
-        socket.emit('admin_kicked_success');
-    });
-});
-
-// ===== نظام الإدارة (إصدار آمن) =====
-const ADMIN_PASSWORD = "ali123";
-const reports = [];
-const admins = new Set();
-
-setTimeout(() => {
-    io.on('connection', (socket) => {
-        socket.on('admin_login', (pass) => {
-            if (pass === ADMIN_PASSWORD) {
-                admins.add(socket.id);
-                socket.emit('admin_success');
-                reports.forEach(r => socket.emit('new_report', r));
-            } else {
-                socket.emit('toast', { message: 'كلمة السر خاطئة!' });
-            }
-        });
-
-        socket.on('report_player', (data) => {
-            const room = rooms.get(socket.data.roomId);
-            if (!room) return;
-            const reporter = room.players.get(socket.id);
-            const target = room.players.get(data.targetId);
-            if (reporter && target) {
-                const reportInfo = { id: Date.now(), reporterName: reporter.name, targetName: target.name, targetId: target.id, roomName: room.name, time: new Date().toLocaleTimeString('ar-SA') };
-                reports.push(reportInfo);
-                systemMsg(room, `🚨 تم الإبلاغ عن ${target.name} من قبل ${reporter.name}`, 'system');
-                admins.forEach(adminId => io.to(adminId).emit('new_report', reportInfo));
-            }
-        });
-
-        socket.on('admin_kick', (data) => {
-            if (!admins.has(socket.id)) return;
-            const room = rooms.get(socket.data.roomId);
-            if (!room) return;
-            const targetSocket = io.sockets.sockets.get(data.targetId);
-            if (targetSocket) { targetSocket.emit('kicked'); targetSocket.leave('room_' + room.id); targetSocket.data.roomId = null; }
-            room.players.delete(data.targetId);
-            systemMsg(room, `🚫 تم طرد ${data.targetName || 'لاعب'} بواسطة الإدارة`);
-            updatePlayers(room);
-            updateRoomsList();
-            socket.emit('admin_kicked_success');
-        });
-    });
-}, 1000); // تأخير بسيط لضمان تحميل المتغيرات
