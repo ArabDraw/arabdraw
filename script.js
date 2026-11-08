@@ -614,3 +614,44 @@ window.addEventListener('load', () => {
         showToast('👑 مرحباً بك يا مطور!');
     }
 });
+
+// ==== لوحة الإدارة (نسخة احترافية) ====
+function openAdminModal() {
+    document.getElementById('admin-modal').classList.add('active');
+}
+function closeAdminModal() {
+    document.getElementById('admin-modal').classList.remove('active');
+}
+function loginAdmin() {
+    const pass = document.getElementById('admin-pass').value;
+    socket.emit('admin_login', pass);
+}
+
+socket.on('admin_success', () => {
+    document.getElementById('admin-login-box').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'block';
+    showToast('✅ تم الدخول كمدير');
+});
+
+socket.on('new_report', (report) => {
+    const list = document.getElementById('reports-list');
+    if (list) {
+        const div = document.createElement('div');
+        div.style.cssText = 'margin-bottom:5px; border-bottom:1px solid #ddd; padding:5px; display:flex; justify-content:space-between; align-items:center;';
+        div.innerHTML = `
+            <span>📢 ${report.reporterName} أبلغ عن <b>${report.targetName}</b> (${report.roomName})</span>
+            <button onclick="adminKick('${report.targetId}', '${report.targetName}')" style="background:#ef4444; color:#fff; border:none; border-radius:5px; padding:3px 8px; cursor:pointer; font-size:0.8rem;">طرد</button>
+        `;
+        list.appendChild(div);
+    }
+});
+
+function adminKick(targetId, targetName) {
+    if (confirm(`هل تريد طرد ${targetName}؟`)) {
+        socket.emit('admin_kick', { targetId, targetName });
+    }
+}
+
+socket.on('admin_kicked_success', () => {
+    showToast('✅ تم طرد اللاعب بنجاح');
+});

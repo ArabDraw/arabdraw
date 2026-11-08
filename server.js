@@ -289,3 +289,64 @@ io.on('connection', (socket) => {
 io.on('connection', (socket) => {
     socket.emit('your_ip', socket.handshake.address);
 });
+
+// ===== نظام الإدارة المتقدم =====
+const ADMIN_PASSWORD = "ali123";
+const reports = [];
+const admins = new Set();
+
+io.on('connection', (socket) => {
+    socket.on('admin_login', (pass) => {
+        if (pass === ADMIN_PASSWORD) {
+            admins.add(socket.id);
+            socket.emit('admin_success');
+            // إرسال كل البلاغات السابقة
+            reports.forEach(r => socket.emit('new_report', r));
+        } else {
+            socket.emit('toast', { message: 'كلمة السر خاطئة!' });
+        }
+    });
+
+    socket.on('report_player', (data) => {
+        const room = rooms.get(socket.data.roomId);
+        if (!room) return;
+        const reporter = room.players.get(socket.id);
+        const target = room.players.get(data.targetId);
+        
+        if (reporter && target) {
+            const reportInfo = {
+                id: Date.now(),
+                reporterName: reporter.name,
+                targetName: target.name,
+                targetId: target.id,
+                roomName: room.name,
+                time: new Date().toLocaleTimeString('ar-SA')
+            };
+            reports.push(reportInfo);
+            systemMsg(room, `🚨 تم الإبلاغ عن ${target.name} من قبل ${reporter.name}`, 'system');
+            
+            // إرسال للمطور فقط
+            admins.forEach(adminId => {
+                io.to(adminId).emit('new_report', reportInfo);
+            });
+        }
+    });
+
+    socket.on('admin_kick', (data) => {
+        if (!admins.has(socket.id)) return;
+        const room = rooms.get(socket.data.roomId);
+        if (!room) return;
+        
+        const targetSocket = io.sockets.sockets.get(data.targetId);
+        if (targetSocket) {
+            targetSocket.emit('kicked');
+            targetSocket.leave('room_' + room.id);
+            targetSocket.data.roomId = null;
+        }
+        room.players.delete(data.targetId);
+        systemMsg(room, `🚫 تم طرد ${data.targetName || 'لاعب'} بواسطة الإدارة`);
+        updatePlayers(room);
+        updateRoomsList();
+        socket.emit('admin_kicked_success');
+    });
+});
