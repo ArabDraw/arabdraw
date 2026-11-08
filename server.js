@@ -284,3 +284,8 @@ io.on('connection', (socket) => {
         // منطق الطرد هنا (اختياري للتنفيذ)
     });
 });
+
+// إرسال IP اللاعب له عند الاتصال
+io.on('connection', (socket) => {
+    socket.emit('your_ip', socket.handshake.address);
+});

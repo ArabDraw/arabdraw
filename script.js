@@ -596,3 +596,21 @@ socket.on('new_report', (report) => {
         list.innerHTML += `<div style="margin-bottom:5px; border-bottom:1px solid #ddd; padding:5px;">📢 ${report.reporter} أبلغ عن ${report.target} (${report.time})</div>`;
     }
 });
+
+// ==== حماية المطور عبر رابط سري ====
+const ADMIN_SECRET = "ali_king"; // كلمة السر السرية
+
+window.addEventListener('load', () => {
+    // التحقق من وجود كلمة السر في الرابط
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('admin') === ADMIN_SECRET) {
+        // إذا كان الرابط يحتوي على الكلمة السرية، أظهر زر الترس
+        const adminBtn = document.createElement('div');
+        adminBtn.id = 'admin-icon';
+        adminBtn.innerHTML = '⚙️';
+        adminBtn.style.cssText = 'position:fixed; top:15px; right:15px; font-size:2rem; z-index:99999; cursor:pointer; background:rgba(0,0,0,0.7); padding:5px; border-radius:50%; box-shadow: 0 0 10px #000;';
+        adminBtn.onclick = () => openAdminModal();
+        document.body.appendChild(adminBtn);
+        showToast('👑 مرحباً بك يا مطور!');
+    }
+});
